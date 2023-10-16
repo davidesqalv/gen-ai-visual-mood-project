@@ -1,0 +1,30 @@
+/* RoundedInput.css */
+.rounded-input-container {
+  display: flex;
+  border: 2px solid #ccc;
+  border-radius: 25px;
+  overflow: hidden;
+}
+
+.rounded-input {
+  flex-grow: 1;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 25px 0 0 25px;
+  outline: none;
+  font-size: 16px;
+}
+
+.icon-button {
+  background-color: #008cba;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 0 25px 25px 0;
+  color: white;
+  font-size: 16px;
+}
+
+.icon-button i {
+  font-size: 16px;
+}
