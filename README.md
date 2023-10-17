@@ -1,6 +1,6 @@
 This is a little project showcasing a way to have LLMs autonomously generate and run GLSL shaders, with user input, (and sentiment models soon!).
 
-![](https://github.com/davidesqalv/gen-ai-visual-mood-project/public/gifrecording.gif)
+![](https://github.com/davidesqalv/gen-ai-visual-mood-project/blob/main/public/gifrecording.gif)
 
 Next thing in the pipeline will be adding adaptive generated portrait images based on the user input, as well as sentiment analysis models.
 
