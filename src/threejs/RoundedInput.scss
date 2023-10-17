@@ -1,8 +1,8 @@
 /* RoundedInput.css */
 .rounded-input-container {
   display: flex;
-  border: 2px solid #ccc;
-  border-radius: 25px;
+  // border: 2px solid #ccc;
+  // border-radius: 25px;
   overflow: hidden;
 }
 
@@ -10,17 +10,17 @@
   flex-grow: 1;
   border: none;
   padding: 10px 20px;
-  border-radius: 25px 0 0 25px;
-  outline: none;
+  // border-radius: 25px 0 0 25px;
+  // outline: none;
   font-size: 16px;
 }
 
 .icon-button {
-  background-color: #008cba;
+  // background-color: #008cba;
   border: none;
   padding: 10px;
   cursor: pointer;
-  border-radius: 0 25px 25px 0;
+  // border-radius: 0 25px 25px 0;
   color: white;
   font-size: 16px;
 }
