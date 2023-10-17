@@ -80,11 +80,10 @@ export default function HomePage() {
           hello, how are you feeling today?
         </div>
         {loadingResponse && <div style={{ color: "white" }}>loading...</div>}
-        {!loadingResponse && (
-          <RoundedInput
-            onButtonClick={(inputValue) => getGPTShader(inputValue)}
-          />
-        )}
+
+        <RoundedInput
+          onButtonClick={(inputValue) => getGPTShader(inputValue)}
+        />
       </div>
       <Canvas
         style={{

@@ -22,3 +22,5 @@ cd fastapi; uvicorn app:app --port=8000 --reload
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+\*Disclaimer: the shader generation still fails sometimes, missing things such as function declarations, performing operations with vectors with different dimensions, etc. More iteration is needed on the prompts.
