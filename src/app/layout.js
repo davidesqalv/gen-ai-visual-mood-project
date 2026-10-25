@@ -12,7 +12,8 @@ const shrk = Shrikhand({
 
 export const metadata = {
   title: "aurashader",
-  description: "Tell a moody agent how you feel and it paints it as a live GLSL shader.",
+  description:
+    "Tell it how you feel and a moody agent writes a one-of-a-kind animated shader for your mood, live in the browser.",
 };
 
 export default function RootLayout({ children }) {
