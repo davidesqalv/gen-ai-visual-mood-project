@@ -14,13 +14,6 @@ import SpiderModel from "@/threejs/spider";
 
 const API_URL = process.env.API_URL;
 
-// Same list as MODELS in fastapi/app.py
-const MODELS = [
-  { id: "gpt-6.1-sol", label: "GPT-6.1 Sol" },
-  { id: "gpt-6-luna", label: "GPT-6 Luna" },
-  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
-];
-
 // How many times to send a shader back with its compiler error before giving up
 const MAX_FIXES = 2;
 
@@ -76,9 +69,9 @@ export default function HomePage() {
   const [videoTexture, setVideoTexture] = useState(null);
   const [shaderData, setShaderData] = useState(null);
   const [loadingResponse, setLoadingResponse] = useState(false);
-  const [model, setModel] = useState(MODELS[0].id);
   const [errorMessage, setErrorMessage] = useState(null);
   const fixAttempts = useRef(0);
+  const lastSentence = useRef("");
 
   function getGPTShader(inputText) {
     // make a post request to the server with the input from the user
@@ -86,12 +79,13 @@ export default function HomePage() {
     setLoadingResponse(true);
     setErrorMessage(null);
     fixAttempts.current = 0;
+    lastSentence.current = inputText;
     fetch(`${API_URL}/gen-shader`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ sentence: inputText, model }),
+      body: JSON.stringify({ sentence: inputText }),
     })
       .then(readJSON)
       .then((data) => {
@@ -106,8 +100,8 @@ export default function HomePage() {
       });
   }
 
-  // GLSLBackground already went back to the last shader that worked, so ask
-  // the checker to fix this one using the real compiler error
+  // GLSLBackground already went back to the last shader that worked, so send
+  // this one back to the model with the compiler error and the original prompt
   function fixShader(compileError) {
     if (fixAttempts.current >= MAX_FIXES) {
       setErrorMessage("couldn't get that shader to compile, try again");
@@ -121,14 +115,14 @@ export default function HomePage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        fragmentShader: shaderData.fragmentShader,
+        sentence: lastSentence.current,
+        shader: shaderData,
         error: compileError,
-        model,
       }),
     })
       .then(readJSON)
       .then((data) => {
-        setShaderData({ ...shaderData, fragmentShader: data.fragmentShader });
+        setShaderData(data);
         setLoadingResponse(false);
       })
       .catch((error) => {
@@ -149,17 +143,6 @@ export default function HomePage() {
         <RoundedInput
           onButtonClick={(inputValue) => getGPTShader(inputValue)}
         />
-        <select
-          value={model}
-          onChange={(event) => setModel(event.target.value)}
-          className="model-select"
-        >
-          {MODELS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
       </div>
       <Canvas
         style={{

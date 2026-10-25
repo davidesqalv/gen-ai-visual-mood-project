@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" width="1000" height="320" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>How a shader gets made, and fixed when it doesn't compile</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c9bfd9"/>
+    </marker>
+  </defs>
+
+  <rect width="1000" height="320" rx="18" fill="#15101f"/>
+
+  <!-- happy path -->
+  <rect x="40" y="40" width="185" height="80" rx="14" fill="#211933" stroke="#9b6bd6" stroke-width="2"/>
+  <text x="132" y="76" text-anchor="middle" fill="#f4f1ea" font-size="16" font-weight="700">You answer</text>
+  <text x="132" y="98" text-anchor="middle" fill="#c9bfd9" font-size="13">"yes, very spooky"</text>
+
+  <rect x="293" y="40" width="185" height="80" rx="14" fill="#211933" stroke="#ff8a2a" stroke-width="2"/>
+  <text x="385" y="76" text-anchor="middle" fill="#f4f1ea" font-size="16" font-weight="700">Claude writes it</text>
+  <text x="385" y="98" text-anchor="middle" fill="#c9bfd9" font-size="13">shaders + 3 colors</text>
+
+  <rect x="546" y="40" width="185" height="80" rx="14" fill="#211933" stroke="#9b6bd6" stroke-width="2"/>
+  <text x="638" y="76" text-anchor="middle" fill="#f4f1ea" font-size="16" font-weight="700">three.js compiles</text>
+  <text x="638" y="98" text-anchor="middle" fill="#c9bfd9" font-size="13">in your browser</text>
+
+  <rect x="799" y="40" width="161" height="80" rx="14" fill="#1d2a17" stroke="#a6cd72" stroke-width="2"/>
+  <text x="879" y="76" text-anchor="middle" fill="#f4f1ea" font-size="16" font-weight="700">On screen</text>
+  <text x="879" y="98" text-anchor="middle" fill="#c9bfd9" font-size="13">it worked</text>
+
+  <line x1="231" y1="80" x2="287" y2="80" stroke="#c9bfd9" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="484" y1="80" x2="540" y2="80" stroke="#c9bfd9" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="737" y1="80" x2="793" y2="80" stroke="#c9bfd9" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- fix loop -->
+  <line x1="600" y1="126" x2="600" y2="194" stroke="#ff8a2a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="588" y="165" text-anchor="end" fill="#ff8a2a" font-size="12">doesn't compile</text>
+  <line x1="676" y1="194" x2="676" y2="126" stroke="#c9bfd9" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="688" y="165" fill="#f4f1ea" font-size="12">fixed shader</text>
+
+  <rect x="526" y="200" width="225" height="90" rx="14" fill="#2a1a12" stroke="#ff8a2a" stroke-width="2"/>
+  <text x="638" y="232" text-anchor="middle" fill="#f4f1ea" font-size="16" font-weight="700">Claude fixes it</text>
+  <text x="638" y="254" text-anchor="middle" fill="#c9bfd9" font-size="13">gets the error, its code</text>
+  <text x="638" y="273" text-anchor="middle" fill="#c9bfd9" font-size="13">and your original answer</text>
+
+  <text x="775" y="238" fill="#c9bfd9" font-size="13">up to 2 tries</text>
+  <text x="775" y="259" fill="#c9bfd9" font-size="13">the last shader stays</text>
+  <text x="775" y="278" fill="#c9bfd9" font-size="13">on screen meanwhile</text>
+</svg>

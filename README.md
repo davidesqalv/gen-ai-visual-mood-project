@@ -1,39 +1,46 @@
-This is a little project showcasing a way to have LLMs autonomously generate and run GLSL shaders, with user input, (and sentiment models soon!).
+# gen-ai-visual-mood-project
 
-![](https://github.com/davidesqalv/gen-ai-visual-mood-project/blob/main/public/gifrecording.gif)
+**Tell it how you feel. Get a shader nobody's seen before.**
 
-Next thing in the pipeline will be adding adaptive generated portrait images based on the user input, with controlnet/stable diffusion and vision preprocessing, as well as sentiment analysis models.
+Type a feeling and Claude writes a brand-new animated GLSL shader for it, then paints it live behind a spinning black-and-white mirror of your webcam. Every answer gets its own one-off visual.
 
-It's a NextJS frontend with a FastAPI backend to perform the LLM calls (OpenAI: GPT-6.1 Sol, GPT-6 Luna or GPT-5.6 Terra, picked from the dropdown under the input).
+![demo](public/gifrecording.gif)
 
-The shader generation has two layers:
+Right now it's in spooky mode 🎃. It asks *"are you feeling spooky?"*: say yes and it goes full Halloween, say no and you get something calm and cozy.
 
-1. The fragment shader, vertex shader, and color generation.
-2. Another pass on the fragment shader, to make sure the code will run without human intervention.
-3. If three.js still can't compile it, the previous shader stays on screen and the real compiler error is sent back to that second pass for a fix (up to 2 tries).
+## How it works
 
-Both passes use structured outputs (a JSON schema), so the response always parses.
+![stack: Next.js frontend, FastAPI backend, Claude Sonnet 5.5](docs/stack.svg)
 
-To run, first start NextJS:
+Your answer goes to a small FastAPI server, which asks Claude Sonnet 5.5 for a vertex shader, a fragment shader and three colors. A JSON schema keeps the reply clean, so it always parses. three.js compiles it and it becomes the background.
+
+### When a shader breaks
+
+![fix loop: if three.js can't compile it, Claude gets the error and fixes it](docs/fix-loop.svg)
+
+LLMs still write GLSL that doesn't compile now and then. When that happens, the last good shader stays up, and Claude gets a "hey, this doesn't work" with the compiler error, its own code and your original answer. It gets two tries.
+
+## Run it
+
+You need Node, Python 3.11+ and an [Anthropic API key](https://platform.claude.com/).
 
 ```bash
+npm install
 npm run dev
 ```
 
-And boot fastAPI in port 8000. First time only, set up the venv and put `OPENAI_API_KEY=...` in `fastapi/.env`:
+In a second terminal:
 
 ```bash
 cd fastapi
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+echo "ANTHROPIC_API_KEY=your-key" >> .env
+.venv/bin/uvicorn app:app --port=8000 --reload
 ```
 
-Then:
+Open [localhost:3000](http://localhost:3000) and allow the camera.
 
-```bash
-cd fastapi; .venv/bin/uvicorn app:app --port=8000 --reload
-```
+## Up next
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-\*Disclaimer: the models still write shaders that don't compile sometimes (missing function declarations, vectors with different dimensions, etc.). When that happens, the compiler error now goes back to the model for a fix instead of leaving a blank screen.
+Generated portraits that react to your mood, and reading the mood from your face instead of asking.

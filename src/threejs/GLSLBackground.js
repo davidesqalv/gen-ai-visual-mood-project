@@ -21,7 +21,14 @@ export default function GLSLBackground(props) {
   const { scene, gl } = useThree();
   // The shader that was on screen before the latest one, to go back to if the new one doesn't compile
   const lastShader = useRef(null);
-  const material = useMemo(() => {
+  // three.js can compile a new shader before React re-runs the effects below,
+  // so the error handler reads these refs instead of state from its closure
+  const currentFragment = useRef(fragmentShaderCode);
+  const onCompileErrorRef = useRef(onCompileError);
+
+  useEffect(() => {
+    onCompileErrorRef.current = onCompileError;
+  }, [onCompileError]);  const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
         resolution: { value: [window.innerWidth, window.innerHeight] },
@@ -43,6 +50,7 @@ export default function GLSLBackground(props) {
   useEffect(() => {
     if (shaderData) {
       lastShader.current = { vertexShaderCode, fragmentShaderCode, colors };
+      currentFragment.current = shaderData.fragmentShader;
       console.log("the material is something so here i am changing it");
       console.log(shaderData);
       setVertexShaderCode(shaderData.vertexShader);
@@ -59,7 +67,7 @@ export default function GLSLBackground(props) {
   useEffect(() => {
     gl.debug.onShaderError = (glContext, program, glVertexShader, glFragmentShader) => {
       const source = glContext.getShaderSource(glFragmentShader) || "";
-      if (!source.includes(fragmentShaderCode) || !lastShader.current) {
+      if (!source.includes(currentFragment.current) || !lastShader.current) {
         console.error("Shader error:", glContext.getShaderInfoLog(glFragmentShader));
         return;
       }
@@ -71,15 +79,16 @@ export default function GLSLBackground(props) {
 
       const last = lastShader.current;
       lastShader.current = null;
+      currentFragment.current = last.fragmentShaderCode;
       setVertexShaderCode(last.vertexShaderCode);
       setFragmentShaderCode(last.fragmentShaderCode);
       setColors(last.colors);
-      onCompileError?.(error);
+      onCompileErrorRef.current?.(error);
     };
     return () => {
       gl.debug.onShaderError = null;
     };
-  }, [gl, fragmentShaderCode, onCompileError]);
+  }, [gl]);
 
   useEffect(() => {
     console.log(

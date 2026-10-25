@@ -1,5 +1,4 @@
-uvicorn 
+uvicorn
 fastapi
-openai>=1.66
-tiktoken
+anthropic
 python-dotenv
