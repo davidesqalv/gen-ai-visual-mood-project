@@ -8,7 +8,7 @@ export default function Home() {
     <main className={styles.main}>
       <div className={styles.description}>
         <h1 style={{ fontFamily: "var(--shrk)", fontWeight: "400" }}>
-          Mega shader test
+          aurashader
         </h1>
       </div>
       <HomePage />

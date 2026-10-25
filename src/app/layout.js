@@ -11,8 +11,8 @@ const shrk = Shrikhand({
 });
 
 export const metadata = {
-  title: "Weird Project",
-  description: "Just a weird project",
+  title: "aurashader",
+  description: "Tell a moody agent how you feel and it paints it as a live GLSL shader.",
 };
 
 export default function RootLayout({ children }) {
