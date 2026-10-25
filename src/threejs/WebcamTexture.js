@@ -1,7 +1,6 @@
 // WebcamTexture.js
 import { useEffect, useRef, useState } from "react";
 import { useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
 import * as THREE from "three";
 
 function WebcamTexture(props) {
@@ -11,14 +10,24 @@ function WebcamTexture(props) {
   // const [videoTexture, setVideoTexture] = useState(null);
 
   useEffect(() => {
+    // The video element lives outside the React tree (drei's <Html> wrapper
+    // gets unmounted mid-render on React 19)
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    videoRef.current = video;
+    let stream = null;
+    let stopped = false;
+
     const initWebcam = async () => {
       const constraints = { video: true };
       try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (stopped) return stream.getTracks().forEach((track) => track.stop());
+        video.srcObject = stream;
+        await video.play();
 
-        const texture = new THREE.VideoTexture(videoRef.current);
+        const texture = new THREE.VideoTexture(video);
         setVideoTexture(texture);
       } catch (error) {
         console.error("Error accessing webcam: ", error);
@@ -26,7 +35,12 @@ function WebcamTexture(props) {
     };
 
     initWebcam();
-  }, []);
+
+    return () => {
+      stopped = true;
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [setVideoTexture]);
 
   // useEffect(() => {
   //   if (videoTexture) {
@@ -39,13 +53,7 @@ function WebcamTexture(props) {
   //   }
   // }, [videoTexture, scene]);
 
-  return (
-    <>
-      <Html>
-        <video ref={videoRef} autoPlay muted style={{ display: "none" }} />
-      </Html>
-    </>
-  );
+  return null;
 }
 
 export default WebcamTexture;

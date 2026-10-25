@@ -1,12 +1,12 @@
 // GLSLBackground.js
 import * as THREE from "three";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import { extend, useThree, useFrame } from "@react-three/fiber";
 
 extend({ ShaderMaterial: THREE.ShaderMaterial });
 
 export default function GLSLBackground(props) {
-  const { shaderData } = props;
+  const { shaderData, onCompileError } = props;
   const [vertexShaderCode, setVertexShaderCode] = useState(`varying vec2 vUv;
         void main() {
           vUv = uv;
@@ -18,7 +18,9 @@ export default function GLSLBackground(props) {
 
   const [colors, setColors] = useState(["#ffffff", "#ff0000", "#ff0000"]);
 
-  const { scene } = useThree();
+  const { scene, gl } = useThree();
+  // The shader that was on screen before the latest one, to go back to if the new one doesn't compile
+  const lastShader = useRef(null);
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -40,26 +42,44 @@ export default function GLSLBackground(props) {
 
   useEffect(() => {
     if (shaderData) {
-      let lastVertexShaderCode = vertexShaderCode;
-      let lastFragmentShaderCode = fragmentShaderCode;
-      let lastColors = colors;
-
-      try {
-        console.log("the material is something so here i am changing it");
-        console.log(shaderData);
-        setVertexShaderCode(shaderData.vertexShader);
-        setFragmentShaderCode(shaderData.fragmentShader);
-        setColors(shaderData.colors);
-
-        material.needsUpdate = true;
-      } catch (error) {
-        setVertexShaderCode(lastVertexShaderCode);
-        setFragmentShaderCode(lastFragmentShaderCode);
-        setColors(lastColors);
-        material.needsUpdate = true;
-      }
+      lastShader.current = { vertexShaderCode, fragmentShaderCode, colors };
+      console.log("the material is something so here i am changing it");
+      console.log(shaderData);
+      setVertexShaderCode(shaderData.vertexShader);
+      setFragmentShaderCode(shaderData.fragmentShader);
+      setColors(shaderData.colors);
     }
-  }, [shaderData, material]);
+    // only when a new shader comes in, not every time the material is rebuilt
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shaderData]);
+
+  // three.js compiles the shader the first time it draws it. If that fails, go
+  // back to the last shader that worked and pass the compiler error up so the
+  // checker can fix it.
+  useEffect(() => {
+    gl.debug.onShaderError = (glContext, program, glVertexShader, glFragmentShader) => {
+      const source = glContext.getShaderSource(glFragmentShader) || "";
+      if (!source.includes(fragmentShaderCode) || !lastShader.current) {
+        console.error("Shader error:", glContext.getShaderInfoLog(glFragmentShader));
+        return;
+      }
+
+      const error = [describeErrors(glContext, glVertexShader), describeErrors(glContext, glFragmentShader)]
+        .filter(Boolean)
+        .join("\n");
+      console.log(`shader didn't compile, going back to the last one\n${error}`);
+
+      const last = lastShader.current;
+      lastShader.current = null;
+      setVertexShaderCode(last.vertexShaderCode);
+      setFragmentShaderCode(last.fragmentShaderCode);
+      setColors(last.colors);
+      onCompileError?.(error);
+    };
+    return () => {
+      gl.debug.onShaderError = null;
+    };
+  }, [gl, fragmentShaderCode, onCompileError]);
 
   useEffect(() => {
     console.log(
@@ -75,4 +95,20 @@ export default function GLSLBackground(props) {
       </mesh>
     </>
   );
+}
+
+// The compiler log, with the offending line under each error. The line numbers
+// count three.js's own prefix too, so the line itself is what helps the model.
+function describeErrors(glContext, shader) {
+  const log = (glContext.getShaderInfoLog(shader) || "").trim();
+  if (!log) return "";
+  const lines = (glContext.getShaderSource(shader) || "").split("\n");
+  return log
+    .split("\n")
+    .map((entry) => {
+      const match = entry.match(/ERROR: \d+:(\d+):/);
+      const line = match && lines[Number(match[1]) - 1];
+      return line ? `${entry}\n  on line: ${line.trim()}` : entry;
+    })
+    .join("\n");
 }

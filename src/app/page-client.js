@@ -2,7 +2,7 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import GLSLBackground from "../threejs/GLSLBackground";
 import RotatingSphere from "../threejs/RotatingSphere";
 import WebcamTexture from "../threejs/WebcamTexture";
@@ -10,8 +10,27 @@ import { useFrame } from "@react-three/fiber";
 import dynamic from "next/dynamic";
 
 import "../threejs/RoundedInput.scss";
+import SpiderModel from "@/threejs/spider";
 
 const API_URL = process.env.API_URL;
+
+// Same list as MODELS in fastapi/app.py
+const MODELS = [
+  { id: "gpt-6.1-sol", label: "GPT-6.1 Sol" },
+  { id: "gpt-6-luna", label: "GPT-6 Luna" },
+  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
+];
+
+// How many times to send a shader back with its compiler error before giving up
+const MAX_FIXES = 2;
+
+async function readJSON(response) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.detail || `request failed (${response.status})`);
+  }
+  return data;
+}
 
 // const RotatingSphere = dynamic(() => import("../threejs/RotatingSphere"), {
 //   loading: () => (
@@ -32,6 +51,10 @@ function RoundedInput({ onButtonClick }) {
     onButtonClick(inputValue);
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter") handleButtonClick();
+  };
+
   return (
     <div className="rounded-input-container">
       <input
@@ -39,10 +62,11 @@ function RoundedInput({ onButtonClick }) {
         placeholder="Enter text"
         value={inputValue}
         onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
         className="rounded-input"
       />
       <button onClick={handleButtonClick} className="icon-button">
-        <i className="fas fa-arrow-right"></i>
+        <i className="fa fa-arrow-right"></i>
       </button>
     </div>
   );
@@ -52,23 +76,63 @@ export default function HomePage() {
   const [videoTexture, setVideoTexture] = useState(null);
   const [shaderData, setShaderData] = useState(null);
   const [loadingResponse, setLoadingResponse] = useState(false);
+  const [model, setModel] = useState(MODELS[0].id);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const fixAttempts = useRef(0);
 
   function getGPTShader(inputText) {
     // make a post request to the server with the input from the user
     // the server will return the shader
     setLoadingResponse(true);
+    setErrorMessage(null);
+    fixAttempts.current = 0;
     fetch(`${API_URL}/gen-shader`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ sentence: inputText }),
+      body: JSON.stringify({ sentence: inputText, model }),
     })
-      .then((response) => response.json())
+      .then(readJSON)
       .then((data) => {
         console.log("this is the JSON");
         console.log(Object.keys(data));
         setShaderData(data);
+        setLoadingResponse(false);
+      })
+      .catch((error) => {
+        setErrorMessage(error.message);
+        setLoadingResponse(false);
+      });
+  }
+
+  // GLSLBackground already went back to the last shader that worked, so ask
+  // the checker to fix this one using the real compiler error
+  function fixShader(compileError) {
+    if (fixAttempts.current >= MAX_FIXES) {
+      setErrorMessage("couldn't get that shader to compile, try again");
+      return;
+    }
+    fixAttempts.current += 1;
+    setLoadingResponse(true);
+    fetch(`${API_URL}/fix-shader`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fragmentShader: shaderData.fragmentShader,
+        error: compileError,
+        model,
+      }),
+    })
+      .then(readJSON)
+      .then((data) => {
+        setShaderData({ ...shaderData, fragmentShader: data.fragmentShader });
+        setLoadingResponse(false);
+      })
+      .catch((error) => {
+        setErrorMessage(error.message);
         setLoadingResponse(false);
       });
   }
@@ -77,13 +141,25 @@ export default function HomePage() {
     <>
       <div style={{ zIndex: "1000" }}>
         <div style={{ width: "10rem", color: "white" }}>
-          hello, how are you feeling today?
+          are you feeling spooky?
         </div>
         {loadingResponse && <div style={{ color: "white" }}>loading...</div>}
+        {errorMessage && <div style={{ color: "white" }}>{errorMessage}</div>}
 
         <RoundedInput
           onButtonClick={(inputValue) => getGPTShader(inputValue)}
         />
+        <select
+          value={model}
+          onChange={(event) => setModel(event.target.value)}
+          className="model-select"
+        >
+          {MODELS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
       <Canvas
         style={{
@@ -94,10 +170,25 @@ export default function HomePage() {
           height: "100vh",
         }}
       >
+        {/* <SpiderModel /> */}
         <WebcamTexture setVideoTexture={setVideoTexture} />
         {videoTexture && <RotatingSphere videoTexture={videoTexture} />}
-        <GLSLBackground attach="material" shaderData={shaderData} />
+        <GLSLBackground
+          attach="material"
+          shaderData={shaderData}
+          onCompileError={fixShader}
+        />
       </Canvas>
+      {/* <Canvas
+        style={{
+          position: "absolute",
+          top: "0",
+          left: "0",
+          width: "100vw",
+          height: "100vh",
+        }}
+        camera={{ position: [0, 0, 120], fov: 70, zoom: state.zoom }}
+      ></Canvas> */}
     </>
   );
 }
