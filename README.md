@@ -1,4 +1,4 @@
-# gen-ai-visual-mood-project
+# aurashader
 
 **Tell it how you feel. Get a shader nobody's seen before.**
 
