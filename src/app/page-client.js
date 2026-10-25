@@ -2,13 +2,14 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import GLSLBackground from "../threejs/GLSLBackground";
 import RotatingSphere from "../threejs/RotatingSphere";
 import WebcamTexture from "../threejs/WebcamTexture";
 import { useFrame } from "@react-three/fiber";
 import dynamic from "next/dynamic";
 
+import { loadingMessage } from "./loading-messages";
 import "../threejs/RoundedInput.scss";
 import SpiderModel from "@/threejs/spider";
 
@@ -17,12 +18,39 @@ const API_URL = process.env.API_URL;
 // How many times to send a shader back with its compiler error before giving up
 const MAX_FIXES = 2;
 
-async function readJSON(response) {
-  const data = await response.json().catch(() => ({}));
+// The backend streams progress as one JSON object per line ({"stage": ...}),
+// then {"shader": ...} at the end, or {"error": ...} if something broke
+async function streamShader(url, body, onProgress) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
     throw new Error(data.detail || `request failed (${response.status})`);
   }
-  return data;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line);
+      if (event.error) throw new Error(event.error);
+      if (event.shader) return event.shader;
+      onProgress(event);
+    }
+  }
+  throw new Error("the connection closed before the shader arrived");
 }
 
 // const RotatingSphere = dynamic(() => import("../threejs/RotatingSphere"), {
@@ -70,8 +98,17 @@ export default function HomePage() {
   const [shaderData, setShaderData] = useState(null);
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [progress, setProgress] = useState({ stage: "sending" });
+  const [tick, setTick] = useState(0);
   const fixAttempts = useRef(0);
   const lastSentence = useRef("");
+
+  // rotate the loading message every couple of seconds
+  useEffect(() => {
+    if (!loadingResponse) return;
+    const interval = setInterval(() => setTick((t) => t + 1), 1800);
+    return () => clearInterval(interval);
+  }, [loadingResponse]);
 
   function getGPTShader(inputText) {
     // make a post request to the server with the input from the user
@@ -80,14 +117,9 @@ export default function HomePage() {
     setErrorMessage(null);
     fixAttempts.current = 0;
     lastSentence.current = inputText;
-    fetch(`${API_URL}/gen-shader`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ sentence: inputText }),
-    })
-      .then(readJSON)
+    setProgress({ stage: "sending" });
+    setTick(0);
+    streamShader(`${API_URL}/gen-shader`, { sentence: inputText }, setProgress)
       .then((data) => {
         console.log("this is the JSON");
         console.log(Object.keys(data));
@@ -109,18 +141,21 @@ export default function HomePage() {
     }
     fixAttempts.current += 1;
     setLoadingResponse(true);
-    fetch(`${API_URL}/fix-shader`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    // the name in quotes in the compiler error, like 'noise'
+    const culprit = compileError.match(/'(\w+)'/)?.[1];
+    setProgress({ stage: "fixing", culprit });
+    setTick(0);
+    streamShader(
+      `${API_URL}/fix-shader`,
+      {
         sentence: lastSentence.current,
         shader: shaderData,
         error: compileError,
-      }),
-    })
-      .then(readJSON)
+      },
+      // keep the fixing messages up until Claude starts rewriting
+      (event) =>
+        setProgress(event.stage === "writing" ? event : { stage: "fixing", culprit })
+    )
       .then((data) => {
         setShaderData(data);
         setLoadingResponse(false);
@@ -137,7 +172,9 @@ export default function HomePage() {
         <div style={{ width: "10rem", color: "white" }}>
           are you feeling spooky?
         </div>
-        {loadingResponse && <div style={{ color: "white" }}>loading...</div>}
+        {loadingResponse && (
+          <div style={{ color: "white" }}>{loadingMessage(progress, tick)}</div>
+        )}
         {errorMessage && <div style={{ color: "white" }}>{errorMessage}</div>}
 
         <RoundedInput

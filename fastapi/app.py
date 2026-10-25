@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import StreamingResponse
 import anthropic
 from anthropic import AsyncAnthropic
 from dotenv import find_dotenv, load_dotenv
@@ -68,25 +68,56 @@ SYSTEM_MESSAGE = '''You are an assistant that based on a series of inputs, will 
 }"'''
 
 
-async def ask(prompt):
-    response = await client.messages.create(
-        model=MODEL,
-        max_tokens=16000,
-        system=SYSTEM_MESSAGE,
-        messages=[{"role": "user", "content": prompt}],
-        output_config={
-            "effort": EFFORT,
-            "format": {"type": "json_schema", "schema": SHADER_SCHEMA},
-        },
-    )
-    if response.stop_reason == "refusal":
-        raise HTTPException(status_code=502, detail="Claude declined that one, try other words")
-    if response.stop_reason == "max_tokens":
-        raise HTTPException(status_code=502, detail="Claude ran out of room before finishing the shader")
-    text = next(block.text for block in response.content if block.type == "text")
-    shader = json.loads(text)
-    shader["colors"] = clean_colors(shader.get("colors", []))
-    return shader
+def progress(**data):
+    return json.dumps(data) + "\n"
+
+
+async def stream_shader(prompt):
+    """Streams what Claude is up to, one JSON object per line, then the shader.
+    {"stage": "thinking"}, {"stage": "writing", "lines": 12}, ..., {"shader": {...}}"""
+    try:
+        async with client.messages.stream(
+            model=MODEL,
+            max_tokens=16000,
+            system=SYSTEM_MESSAGE,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={
+                "effort": EFFORT,
+                "format": {"type": "json_schema", "schema": SHADER_SCHEMA},
+            },
+        ) as stream:
+            text = ""
+            lines = 0
+            async for event in stream:
+                if event.type == "content_block_start":
+                    if event.content_block.type == "thinking":
+                        yield progress(stage="thinking")
+                    elif event.content_block.type == "text":
+                        yield progress(stage="writing", lines=0)
+                elif event.type == "content_block_delta" and event.delta.type == "text_delta":
+                    text += event.delta.text
+                    # the shader's line breaks arrive as \n escapes inside the JSON
+                    if text.count("\\n") != lines:
+                        lines = text.count("\\n")
+                        yield progress(stage="writing", lines=lines)
+            message = await stream.get_final_message()
+
+        if message.stop_reason == "refusal":
+            yield progress(error="Claude declined that one, try other words")
+            return
+        if message.stop_reason == "max_tokens":
+            yield progress(error="Claude ran out of room before finishing the shader")
+            return
+
+        shader = json.loads(text)
+        shader["colors"] = clean_colors(shader.get("colors", []))
+        yield progress(shader=shader)
+
+    except anthropic.APIError as e:
+        yield progress(error=api_error(e).detail)
+    except Exception as e:
+        print(f"Error: {e}")
+        yield progress(error=str(e))
 
 
 def api_error(e):
@@ -126,15 +157,10 @@ async def gen_shader(request: Request):
         if not sentence:
             raise HTTPException(status_code=400, detail="Input string is required")
 
-        shader = await ask(sentence)
-        # print(f'shader to json: {shader}')
-
-        return JSONResponse(content=shader)
+        return StreamingResponse(stream_shader(sentence), media_type="application/x-ndjson")
 
     except HTTPException:
         raise
-    except anthropic.APIError as e:
-        raise api_error(e)
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -155,8 +181,7 @@ async def fix_shader(request: Request):
                 status_code=400, detail="sentence, shader and error are required"
             )
 
-        fixed = await ask(
-            f"""Hey, this shader doesn't work. three.js fails to compile it with this error:
+        prompt = f"""Hey, this shader doesn't work. three.js fails to compile it with this error:
 
 {compile_error}
 
@@ -167,13 +192,10 @@ Here's the code:
 And here's what the user originally said: "{sentence}"
 
 Fix it and send the whole thing back, keeping the same idea."""
-        )
-        return JSONResponse(content=fixed)
+        return StreamingResponse(stream_shader(prompt), media_type="application/x-ndjson")
 
     except HTTPException:
         raise
-    except anthropic.APIError as e:
-        raise api_error(e)
     except Exception as e:
         print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
