@@ -29,7 +29,29 @@
   font-size: 16px;
 }
 
-.model-select {
-  margin-top: 6px;
-  font-size: 14px;
+.loading-message {
+  display: inline-block;
+  animation: loading-message-in 0.35s ease-out;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+
+  &.leaving {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes loading-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-message {
+    animation: none;
+    transition: none;
+  }
 }

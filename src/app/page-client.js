@@ -9,27 +9,48 @@ import WebcamTexture from "../threejs/WebcamTexture";
 import { useFrame } from "@react-three/fiber";
 import dynamic from "next/dynamic";
 
+import LoadingMessage from "./loading-message";
 import "../threejs/RoundedInput.scss";
 import SpiderModel from "@/threejs/spider";
 
 const API_URL = process.env.API_URL;
 
-// Same list as MODELS in fastapi/app.py
-const MODELS = [
-  { id: "gpt-6.1-sol", label: "GPT-6.1 Sol" },
-  { id: "gpt-6-luna", label: "GPT-6 Luna" },
-  { id: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
-];
-
 // How many times to send a shader back with its compiler error before giving up
 const MAX_FIXES = 2;
 
-async function readJSON(response) {
-  const data = await response.json().catch(() => ({}));
+// The backend streams progress as one JSON object per line ({"stage": ...}),
+// then {"shader": ...} at the end, or {"error": ...} if something broke
+async function streamShader(url, body, onProgress) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
     throw new Error(data.detail || `request failed (${response.status})`);
   }
-  return data;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line);
+      if (event.error) throw new Error(event.error);
+      if (event.shader) return event.shader;
+      onProgress(event);
+    }
+  }
+  throw new Error("the connection closed before the shader arrived");
 }
 
 // const RotatingSphere = dynamic(() => import("../threejs/RotatingSphere"), {
@@ -76,9 +97,10 @@ export default function HomePage() {
   const [videoTexture, setVideoTexture] = useState(null);
   const [shaderData, setShaderData] = useState(null);
   const [loadingResponse, setLoadingResponse] = useState(false);
-  const [model, setModel] = useState(MODELS[0].id);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [progress, setProgress] = useState({ stage: "sending" });
   const fixAttempts = useRef(0);
+  const lastSentence = useRef("");
 
   function getGPTShader(inputText) {
     // make a post request to the server with the input from the user
@@ -86,14 +108,9 @@ export default function HomePage() {
     setLoadingResponse(true);
     setErrorMessage(null);
     fixAttempts.current = 0;
-    fetch(`${API_URL}/gen-shader`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ sentence: inputText, model }),
-    })
-      .then(readJSON)
+    lastSentence.current = inputText;
+    setProgress({ stage: "sending" });
+    streamShader(`${API_URL}/gen-shader`, { sentence: inputText }, setProgress)
       .then((data) => {
         console.log("this is the JSON");
         console.log(Object.keys(data));
@@ -106,8 +123,8 @@ export default function HomePage() {
       });
   }
 
-  // GLSLBackground already went back to the last shader that worked, so ask
-  // the checker to fix this one using the real compiler error
+  // GLSLBackground already went back to the last shader that worked, so send
+  // this one back to the model with the compiler error and the original prompt
   function fixShader(compileError) {
     if (fixAttempts.current >= MAX_FIXES) {
       setErrorMessage("couldn't get that shader to compile, try again");
@@ -115,20 +132,22 @@ export default function HomePage() {
     }
     fixAttempts.current += 1;
     setLoadingResponse(true);
-    fetch(`${API_URL}/fix-shader`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fragmentShader: shaderData.fragmentShader,
+    // the name in quotes in the compiler error, like 'noise'
+    const culprit = compileError.match(/'(\w+)'/)?.[1];
+    setProgress({ stage: "fixing", culprit });
+    streamShader(
+      `${API_URL}/fix-shader`,
+      {
+        sentence: lastSentence.current,
+        shader: shaderData,
         error: compileError,
-        model,
-      }),
-    })
-      .then(readJSON)
+      },
+      // keep the fixing messages up until Claude starts rewriting
+      (event) =>
+        setProgress(event.stage === "writing" ? event : { stage: "fixing", culprit })
+    )
       .then((data) => {
-        setShaderData({ ...shaderData, fragmentShader: data.fragmentShader });
+        setShaderData(data);
         setLoadingResponse(false);
       })
       .catch((error) => {
@@ -143,23 +162,12 @@ export default function HomePage() {
         <div style={{ width: "10rem", color: "white" }}>
           are you feeling spooky?
         </div>
-        {loadingResponse && <div style={{ color: "white" }}>loading...</div>}
+        {loadingResponse && <LoadingMessage progress={progress} />}
         {errorMessage && <div style={{ color: "white" }}>{errorMessage}</div>}
 
         <RoundedInput
           onButtonClick={(inputValue) => getGPTShader(inputValue)}
         />
-        <select
-          value={model}
-          onChange={(event) => setModel(event.target.value)}
-          className="model-select"
-        >
-          {MODELS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
       </div>
       <Canvas
         style={{
