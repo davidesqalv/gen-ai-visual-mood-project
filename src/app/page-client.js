@@ -10,6 +10,7 @@ import { useFrame } from "@react-three/fiber";
 import dynamic from "next/dynamic";
 
 import "../threejs/RoundedInput.scss";
+import SpiderModel from "@/threejs/spider";
 
 const API_URL = process.env.API_URL;
 
@@ -77,7 +78,7 @@ export default function HomePage() {
     <>
       <div style={{ zIndex: "1000" }}>
         <div style={{ width: "10rem", color: "white" }}>
-          hello, how are you feeling today?
+          are you feeling spooky?
         </div>
         {loadingResponse && <div style={{ color: "white" }}>loading...</div>}
 
@@ -94,10 +95,21 @@ export default function HomePage() {
           height: "100vh",
         }}
       >
+        {/* <SpiderModel /> */}
         <WebcamTexture setVideoTexture={setVideoTexture} />
         {videoTexture && <RotatingSphere videoTexture={videoTexture} />}
         <GLSLBackground attach="material" shaderData={shaderData} />
       </Canvas>
+      {/* <Canvas
+        style={{
+          position: "absolute",
+          top: "0",
+          left: "0",
+          width: "100vw",
+          height: "100vh",
+        }}
+        camera={{ position: [0, 0, 120], fov: 70, zoom: state.zoom }}
+      ></Canvas> */}
     </>
   );
 }

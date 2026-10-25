@@ -2,7 +2,7 @@ This is a little project showcasing a way to have LLMs autonomously generate and
 
 ![](https://github.com/davidesqalv/gen-ai-visual-mood-project/blob/main/public/gifrecording.gif)
 
-Next thing in the pipeline will be adding adaptive generated portrait images based on the user input, as well as sentiment analysis models.
+Next thing in the pipeline will be adding adaptive generated portrait images based on the user input, with controlnet/stable diffusion and vision preprocessing, as well as sentiment analysis models.
 
 It's a NextJS frontend with a FastAPI backend to perform the LLM (chatGPT) calls.
 
