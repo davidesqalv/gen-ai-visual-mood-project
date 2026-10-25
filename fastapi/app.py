@@ -13,7 +13,18 @@ ENV_FILE = find_dotenv()
 if ENV_FILE:
     load_dotenv(ENV_FILE)
 
-client = AsyncAnthropic(api_key=env.get("ANTHROPIC_API_KEY"))
+client = None
+
+
+def anthropic_client():
+    """Made on first use. Until there's a key, fastapi/.env is re-read on every
+    request, so a key pasted in after the server started works without a restart"""
+    global client
+    if client is None:
+        load_dotenv(find_dotenv(), override=True)
+        if env.get("ANTHROPIC_API_KEY"):
+            client = AsyncAnthropic(api_key=env["ANTHROPIC_API_KEY"])
+    return client
 
 MODEL = "claude-sonnet-5-5"
 # medium keeps it quick; Sonnet 5.5 defaults to high
@@ -75,8 +86,12 @@ def progress(**data):
 async def stream_shader(prompt):
     """Streams what Claude is up to, one JSON object per line, then the shader.
     {"stage": "thinking"}, {"stage": "writing", "lines": 12}, ..., {"shader": {...}}"""
+    if anthropic_client() is None:
+        yield progress(error="No Anthropic API key yet. Paste it into fastapi/.env and try again")
+        return
+
     try:
-        async with client.messages.stream(
+        async with anthropic_client().messages.stream(
             model=MODEL,
             max_tokens=16000,
             system=SYSTEM_MESSAGE,
@@ -114,6 +129,10 @@ async def stream_shader(prompt):
         yield progress(shader=shader)
 
     except anthropic.APIError as e:
+        if isinstance(e, anthropic.AuthenticationError):
+            # read fastapi/.env again next time, in case the key gets fixed
+            global client
+            client = None
         yield progress(error=api_error(e).detail)
     except Exception as e:
         print(f"Error: {e}")

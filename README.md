@@ -22,24 +22,15 @@ LLMs still write GLSL that doesn't compile now and then. When that happens, the 
 
 ## Run it
 
-You need Node, Python 3.11+ and an [Anthropic API key](https://platform.claude.com/).
+You need Node 20.9+, Python 3.10+ and an [Anthropic API key](https://platform.claude.com/).
 
 ```bash
-npm install
-npm run dev
+git clone https://github.com/davidesqalv/aurashader && cd aurashader
+npm install   # sets up the Next.js app and the Python backend
+npm run dev   # starts both
 ```
 
-In a second terminal:
-
-```bash
-cd fastapi
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-echo "ANTHROPIC_API_KEY=your-key" >> .env
-.venv/bin/uvicorn app:app --port=8000 --reload
-```
-
-Open [localhost:3000](http://localhost:3000) and allow the camera.
+`npm install` creates `fastapi/.env` for you. Paste your key in there, open [localhost:3000](http://localhost:3000) and allow the camera.
 
 ## Up next
 
