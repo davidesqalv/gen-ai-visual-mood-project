@@ -2,14 +2,14 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import GLSLBackground from "../threejs/GLSLBackground";
 import RotatingSphere from "../threejs/RotatingSphere";
 import WebcamTexture from "../threejs/WebcamTexture";
 import { useFrame } from "@react-three/fiber";
 import dynamic from "next/dynamic";
 
-import { loadingMessage } from "./loading-messages";
+import LoadingMessage from "./loading-message";
 import "../threejs/RoundedInput.scss";
 import SpiderModel from "@/threejs/spider";
 
@@ -99,16 +99,8 @@ export default function HomePage() {
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [progress, setProgress] = useState({ stage: "sending" });
-  const [tick, setTick] = useState(0);
   const fixAttempts = useRef(0);
   const lastSentence = useRef("");
-
-  // rotate the loading message every couple of seconds
-  useEffect(() => {
-    if (!loadingResponse) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 1800);
-    return () => clearInterval(interval);
-  }, [loadingResponse]);
 
   function getGPTShader(inputText) {
     // make a post request to the server with the input from the user
@@ -118,7 +110,6 @@ export default function HomePage() {
     fixAttempts.current = 0;
     lastSentence.current = inputText;
     setProgress({ stage: "sending" });
-    setTick(0);
     streamShader(`${API_URL}/gen-shader`, { sentence: inputText }, setProgress)
       .then((data) => {
         console.log("this is the JSON");
@@ -144,7 +135,6 @@ export default function HomePage() {
     // the name in quotes in the compiler error, like 'noise'
     const culprit = compileError.match(/'(\w+)'/)?.[1];
     setProgress({ stage: "fixing", culprit });
-    setTick(0);
     streamShader(
       `${API_URL}/fix-shader`,
       {
@@ -172,9 +162,7 @@ export default function HomePage() {
         <div style={{ width: "10rem", color: "white" }}>
           are you feeling spooky?
         </div>
-        {loadingResponse && (
-          <div style={{ color: "white" }}>{loadingMessage(progress, tick)}</div>
-        )}
+        {loadingResponse && <LoadingMessage progress={progress} />}
         {errorMessage && <div style={{ color: "white" }}>{errorMessage}</div>}
 
         <RoundedInput
