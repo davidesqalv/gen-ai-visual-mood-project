@@ -2,8 +2,15 @@
   "name": "aurashader",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
-    "dev": "next dev",
+    "postinstall": "node scripts/setup-backend.mjs",
+    "setup": "node scripts/setup-backend.mjs",
+    "dev": "concurrently -k -n web,api -c magenta,cyan \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "next dev",
+    "dev:api": "node scripts/dev-api.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
@@ -23,6 +30,7 @@
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "concurrently": "^9.2.5",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3"
   }
